@@ -6,3 +6,4 @@ matplotlib
 joblib
 yfinance
 tensorflow-cpu
+plotly
