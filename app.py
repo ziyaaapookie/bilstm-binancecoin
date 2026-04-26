@@ -54,7 +54,7 @@ st.markdown("""
 # =============================
 @st.cache_resource
 def load_resources():
-    model = load_model("bilstm_model.h5")
+    model = load_model("bilstm_tuned.keras")
     scaler = joblib.load("scaler.pkl")
     return model, scaler
 
