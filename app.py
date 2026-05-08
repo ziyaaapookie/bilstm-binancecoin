@@ -231,12 +231,7 @@ days = st.selectbox(
     f"{x} Hari" if x < 30 else "1 Bulan (30 Hari)"
 )
 
-if days == 30:
-    st.info(
-        "📌 Prediksi 1 bulan dilakukan secara autoregressive, "
-        "yaitu menggunakan hasil prediksi sebelumnya "
-        "sebagai input prediksi berikutnya."
-    )
+
 
 if st.button("Generate Prediksi"):
 
