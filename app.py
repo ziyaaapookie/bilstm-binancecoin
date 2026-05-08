@@ -76,7 +76,13 @@ st.markdown(f"""
 # =============================
 # FETCH DATA
 # =============================
-df = yf.download("BNB-USD", period="90d", interval="1d", progress=False, auto_adjust=True)
+df = yf.download(
+    "BNB-USD",
+    period="90d",
+    interval="1d",
+    progress=False,
+    auto_adjust=True
+)
 
 if df.empty:
     st.error("⚠️ Gagal mengambil data.")
@@ -91,20 +97,25 @@ close_prices = df['Close'].values
 # PREPARE DATA
 # =============================
 time_step = 60
+
 data_scaled = scaler.transform(close_prices.reshape(-1, 1))
 last_60 = data_scaled[-time_step:]
 
 # =============================
-# PREDIKSI
+# PREDIKSI HARI INI & BESOK
 # =============================
 
 # Prediksi hari ini
 X_today = data_scaled[-(time_step + 1):-1].reshape(1, time_step, 1)
-pred_today = scaler.inverse_transform(model.predict(X_today, verbose=0))[0][0]
+pred_today = scaler.inverse_transform(
+    model.predict(X_today, verbose=0)
+)[0][0]
 
 # Prediksi besok
 X_tomorrow = last_60.reshape(1, time_step, 1)
-pred_tomorrow = scaler.inverse_transform(model.predict(X_tomorrow, verbose=0))[0][0]
+pred_tomorrow = scaler.inverse_transform(
+    model.predict(X_tomorrow, verbose=0)
+)[0][0]
 
 # Harga aktual
 today_price = close_prices[-1]
@@ -112,7 +123,7 @@ yesterday_price = close_prices[-2]
 day_before_yesterday_price = close_prices[-3]
 
 # =============================
-# DELTA YANG BENAR (FIX)
+# DELTA
 # =============================
 delta_today = pred_today - today_price
 delta_pct_today = (delta_today / today_price) * 100
@@ -126,10 +137,16 @@ delta_pct_tomorrow = (delta_tomorrow / today_price) * 100
 col1, col2, col3, col4, col5 = st.columns(5)
 
 with col1:
-    st.metric("📅 2 Hari Lalu", f"${day_before_yesterday_price:,.2f}")
+    st.metric(
+        "📅 2 Hari Lalu",
+        f"${day_before_yesterday_price:,.2f}"
+    )
 
 with col2:
-    st.metric("📅 Kemarin", f"${yesterday_price:,.2f}")
+    st.metric(
+        "📅 Kemarin",
+        f"${yesterday_price:,.2f}"
+    )
 
 with col3:
     st.metric(
@@ -139,7 +156,10 @@ with col3:
     )
 
 with col4:
-    st.metric("💰 Harga Realtime", f"${today_price:,.2f}")
+    st.metric(
+        "💰 Harga Realtime",
+        f"${today_price:,.2f}"
+    )
 
 with col5:
     st.metric(
@@ -157,73 +177,137 @@ st.subheader("📈 Tren Harga 7 Hari Terakhir")
 last_7 = df.tail(7)
 
 fig = go.Figure()
+
 fig.add_trace(go.Scatter(
     x=last_7.index,
     y=last_7['Close'],
     mode='lines+markers',
-    line=dict(color='#F0B90B', width=3)
+    line=dict(color='#F0B90B', width=3),
+    name='Harga BNB'
 ))
 
-fig.update_layout(template='plotly_dark')
+fig.update_layout(
+    template='plotly_dark',
+    xaxis_title='Tanggal',
+    yaxis_title='Harga'
+)
+
 st.plotly_chart(fig, use_container_width=True)
 
 # =============================
-# FUTURE PREDICTION
+# FUTURE PREDICTION FUNCTION
 # =============================
 def predict_future(days):
     temp = list(last_60.flatten())
     preds = []
 
     for _ in range(days):
-        x = np.array(temp[-time_step:]).reshape(1, time_step, 1)
+
+        x = np.array(
+            temp[-time_step:]
+        ).reshape(1, time_step, 1)
+
         yhat = model.predict(x, verbose=0)
+
         temp.append(yhat[0][0])
+
         preds.append(yhat[0][0])
 
     preds = np.array(preds).reshape(-1, 1)
+
     return scaler.inverse_transform(preds).flatten()
 
+# =============================
+# FUTURE PREDICTION UI
+# =============================
 st.divider()
 st.subheader("🚀 Prediksi Jangka Pendek")
 
-days = st.selectbox("Pilih Hari", [3, 7, 14], index=1)
+days = st.selectbox(
+    "Pilih Horizon Prediksi",
+    [3, 7, 14, 30],
+    index=1,
+    format_func=lambda x:
+    f"{x} Hari" if x < 30 else "1 Bulan (30 Hari)"
+)
+
+if days == 30:
+    st.info(
+        "📌 Prediksi 1 bulan dilakukan secara autoregressive, "
+        "yaitu menggunakan hasil prediksi sebelumnya "
+        "sebagai input prediksi berikutnya."
+    )
 
 if st.button("Generate Prediksi"):
+
     future = predict_future(days)
-    dates = [df.index[-1] + timedelta(days=i+1) for i in range(days)]
+
+    dates = [
+        df.index[-1] + timedelta(days=i + 1)
+        for i in range(days)
+    ]
 
     future_df = pd.DataFrame({
         "Tanggal": dates,
         "Prediksi": future
     })
 
+    # =============================
+    # TABLE
+    # =============================
     st.dataframe(
-        future_df.style.format({"Prediksi": "${:,.2f}"}),
+        future_df.style.format({
+            "Prediksi": "${:,.2f}"
+        }),
         use_container_width=True,
         hide_index=True
     )
 
+    # =============================
+    # FUTURE CHART
+    # =============================
     fig2 = go.Figure()
 
+    # Garis prediksi
     fig2.add_trace(go.Scatter(
         x=future_df['Tanggal'],
         y=future_df['Prediksi'],
         mode='lines+markers',
-        line=dict(color='#00C853', dash='dot')
+        line=dict(
+            color='#00C853',
+            dash='dot',
+            width=3
+        ),
+        name='Prediksi'
     ))
 
+    # Titik harga saat ini
     fig2.add_trace(go.Scatter(
         x=[df.index[-1]],
         y=[today_price],
         mode='markers',
-        marker=dict(size=10, color='#F0B90B')
+        marker=dict(
+            size=10,
+            color='#F0B90B'
+        ),
+        name='Harga Saat Ini'
     ))
 
-    fig2.update_layout(template='plotly_dark')
+    fig2.update_layout(
+        template='plotly_dark',
+        xaxis_title='Tanggal',
+        yaxis_title='Prediksi Harga',
+        title=f'Prediksi Harga BNB {days} Hari Kedepan'
+    )
+
     st.plotly_chart(fig2, use_container_width=True)
 
 # =============================
 # FOOTER
 # =============================
 st.divider()
-st.caption("⚠️ Bukan saran finansial. Gunakan dengan bijak.")
+
+st.caption(
+    "⚠️ Bukan saran finansial. "
+    "Gunakan dengan bijak."
+)
